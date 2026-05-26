@@ -1,0 +1,63 @@
+/* Reset */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: Arial, sans-serif;
+}
+
+/* Full page background */
+body {
+    height: 100vh;
+    background: linear-gradient(135deg, #1e3c72, #2a5298);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* Main container */
+.container {
+    background: white;
+    padding: 30px;
+    border-radius: 15px;
+    width: 350px;
+    text-align: center;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+}
+
+/* Title */
+.container h2 {
+    margin-bottom: 20px;
+    color: #333;
+}
+
+/* Video styling */
+video {
+    width: 100%;
+    border-radius: 10px;
+    border: 2px solid #ddd;
+    margin-bottom: 20px;
+}
+
+/* Button */
+button {
+    width: 100%;
+    padding: 12px;
+    background: #2a5298;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+/* Button hover */
+button:hover {
+    background: #1e3c72;
+}
+
+/* Hidden canvas */
+canvas {
+    display: none;
+}

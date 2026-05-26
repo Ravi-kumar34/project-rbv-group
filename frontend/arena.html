@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Synchronized Arena - Match</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .board {
+            display: grid;
+            grid-template-columns: repeat(3, 100px);
+            gap: 5px;
+            margin: 20px auto;
+            width: max-content;
+            background: #333;
+            padding: 5px;
+            border-radius: 8px;
+        }
+        .cell {
+            width: 100px;
+            height: 100px;
+            background: #fff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 3em;
+            font-weight: bold;
+            cursor: pointer;
+            color: #2a5298;
+        }
+        .cell:hover { background: #f0f0f0; }
+        #status-text { font-size: 1.2em; font-weight: bold; margin-bottom: 15px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Tic-Tac-Toe</h2>
+    <div id="status-text">Loading game state...</div>
+    
+    <div class="board" id="board">
+        </div>
+</div>
+
+<script src="arena.js"></script>
+</body>
+</html>

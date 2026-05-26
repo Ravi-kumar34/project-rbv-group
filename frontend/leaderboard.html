@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Global Leaderboard</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .leaderboard-container {
+            width: 650px;
+            max-width: 95%;
+            /* Add these two lines: */
+            max-height: 90vh;  
+            overflow-y: auto;  
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            font-size: 15px;
+        }
+
+        thead {
+            background: #2a5298;
+            color: white;
+        }
+
+        thead th {
+            padding: 12px 15px;
+            text-align: left;
+        }
+
+        tbody tr {
+            border-bottom: 1px solid #ddd;
+            transition: background 0.2s;
+        }
+
+        tbody tr:hover {
+            background: #f0f4ff;
+        }
+
+        tbody td {
+            padding: 11px 15px;
+            color: #333;
+        }
+
+        /* Rank column */
+        td.rank {
+            font-weight: bold;
+            color: #2a5298;
+            text-align: center;
+        }
+
+        /* Gold / Silver / Bronze for top 3 */
+        tr:nth-child(1) td.rank { color: #FFD700; font-size: 1.2em; }
+        tr:nth-child(2) td.rank { color: #C0C0C0; font-size: 1.1em; }
+        tr:nth-child(3) td.rank { color: #CD7F32; }
+
+        .online-dot {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #28a745;
+            margin-right: 6px;
+        }
+
+        .offline-dot {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #ccc;
+            margin-right: 6px;
+        }
+
+        .back-btn {
+            margin-top: 20px;
+            width: auto;
+            padding: 10px 25px;
+            font-size: 14px;
+        }
+
+        #loading-msg {
+            color: #666;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container leaderboard-container">
+    <h2>🏆 Global Leaderboard</h2>
+    <p>All players ranked by Elo rating.</p>
+
+    <p id="loading-msg">Loading leaderboard...</p>
+
+    <table id="leaderboard-table" style="display:none;">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Player</th>
+                <th>UID</th>
+                <th>Elo Rating</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody id="leaderboard-body">
+        </tbody>
+    </table>
+
+    <button class="back-btn" onclick="window.location.href='lobby.html'">← Back to Lobby</button>
+</div>
+
+<script src="leaderboard.js"></script>
+</body>
+</html>

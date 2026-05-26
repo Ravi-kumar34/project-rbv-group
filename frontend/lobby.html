@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Synchronized Arena - Lobby</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .lobby-container {
+            width: 600px;
+            max-width: 90%;
+        }
+        .player-card {
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .challenge-btn {
+            background: #28a745;
+            padding: 8px 15px;
+            width: auto;
+            font-size: 14px;
+        }
+        .challenge-btn:hover {
+            background: #218838;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container lobby-container">
+    <h2>Live Arena Lobby</h2>
+    <p>Select a player to challenge them to Tic-Tac-Toe.</p>
+    
+    <button onclick="window.location.href='leaderboard.html'" style="background: #FFD700; color: #333; font-weight: bold; margin-bottom: 15px; width: 200px;">🏆 View Leaderboard</button>
+    
+    <div id="players-list">
+        <p>Loading arena...</p>
+    </div>
+</div>
+
+<div id="challenge-modal" style="display: none; position: fixed; top: 30%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 10px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); z-index: 1000; text-align: center;">
+    <h3 id="challenge-text">⚔️ Challenge Incoming!</h3>
+    <button id="accept-btn" style="background: #28a745; margin: 10px; width: 100px;">Accept</button>
+    <button id="decline-btn" style="background: #d9534f; margin: 10px; width: 100px;">Decline</button>
+</div>
+
+<script src="lobby.js"></script>
+</body>
+</html>
