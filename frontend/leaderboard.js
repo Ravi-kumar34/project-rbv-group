@@ -10,7 +10,8 @@ if (!myUid) {
 
 async function loadLeaderboard() {
     try {
-        const response = await fetch("http://10.221.28.246:8000/leaderboard");
+        const host = window.location.hostname;
+        const response = await fetch(`http://${host}:8000/leaderboard`);
         
         // Check if the HTTP request itself failed (e.g., 404 or 500 errors)
         if (!response.ok) {

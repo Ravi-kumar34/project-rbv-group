@@ -7,7 +7,8 @@ if (!myUid) {
 }
 
 // 2. Open the WebSocket connection
-const ws = new WebSocket(`ws://10.221.28.246:8000/ws/${myUid}`);
+const host = window.location.hostname;
+const ws = new WebSocket(`ws://${host}:8000/ws/${myUid}`);
 
 // 3. Listen for messages from the server
 ws.onmessage = function(event) {

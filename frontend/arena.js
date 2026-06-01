@@ -5,7 +5,8 @@ if (!myUid || !gameId) {
     window.location.href = "index.html";
 }
 
-const ws = new WebSocket(`ws://10.221.28.246:8000/ws/${myUid}`);
+const host = window.location.hostname;
+const ws = new WebSocket(`ws://${host}:8000/ws/${myUid}`);
 // Ask the server for the initial board state as soon as we connect
 ws.onopen = function() {
     ws.send(JSON.stringify({

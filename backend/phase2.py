@@ -8,11 +8,14 @@ from backend.facial_recognition_module import find_closest_match
 from fastapi import WebSocket, WebSocketDisconnect
 import json
 import uuid
+from backend.phase4 import *
 
 # Add this right below your sessions dictionary
 active_games = {}
 
 app = FastAPI()
+
+app.include_router(router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -133,30 +136,37 @@ def login(request: LoginRequest):
     except Exception as e:
         return {"message": f"Error: {str(e)}"}
 # # ---------- LOGIN API (DEV BYPASS) ----------
-# @app.post("/login")
-# def login(request: LoginRequest):
-#     print("⚠️ DEV MODE: Skipping slow facial recognition...")
-    
-#     # Hardcode your UID here so the system knows who is logging in
-#     dev_uid = "2025101040" 
+@app.post("/loginroll")
+def loginroll(dev_uid: str):
 
-#     try:
-#         # We still MUST update MySQL so Phase 3 knows you are online
-#         mysql_cursor.execute(
-#             "UPDATE users SET is_online=TRUE WHERE uid=%s", (dev_uid,)
-#         )
-#         mysql_conn.commit()
+    try:
+        mysql_cursor.execute(
+            "SELECT uid FROM users WHERE uid=%s",
+            (dev_uid,)
+        )
 
-#         sessions[dev_uid] = True
+        user = mysql_cursor.fetchone()
 
-#         # Instantly return success!
-#         return {
-#             "message": "Login Success",
-#             "uid": dev_uid
-#         }
+        if user is None:
+            return {
+                "message": "Invalid UID"
+            }
 
-#     except Exception as e:
-#         return {"message": f"Error: {str(e)}"}
+        mysql_cursor.execute(
+            "UPDATE users SET is_online=TRUE WHERE uid=%s",
+            (dev_uid,)
+        )
+        mysql_conn.commit()
+
+        sessions[dev_uid] = True
+
+        return {
+            "message": "Login Success",
+            "uid": dev_uid
+        }
+
+    except Exception as e:
+        return {"message": f"Error: {str(e)}"}
 def check_winner(board):
     win_combinations = [
         [0, 1, 2], [3, 4, 5], [6, 7, 8], # Rows
@@ -172,7 +182,7 @@ def check_winner(board):
         return "Draw" # Board is full
         
     return None # Game is still going
-# ---------- PHASE 3: THE LIVE ARENA ----------
+
 # ---------- PHASE 3: THE LIVE ARENA ----------
 @app.websocket("/ws/{uid}")
 async def websocket_endpoint(websocket: WebSocket, uid: str):
