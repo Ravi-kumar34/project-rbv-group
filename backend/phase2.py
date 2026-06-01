@@ -186,18 +186,20 @@ def check_winner(board):
 # ---------- PHASE 3: THE LIVE ARENA ----------
 @app.websocket("/ws/{uid}")
 async def websocket_endpoint(websocket: WebSocket, uid: str):
+    
+    # 1. Update MySQL: Mark user as online BEFORE opening the socket!
+    mysql_cursor.execute("UPDATE users SET is_online=TRUE WHERE uid=%s", (uid,))
+    mysql_conn.commit()
+
+    # 2. NOW accept the socket. This guarantees the DB is updated before the frontend fetches.
     await manager.connect(websocket, uid)
 
     try:
-        # 1. Update MySQL: Mark user as online
-        mysql_cursor.execute("UPDATE users SET is_online=TRUE WHERE uid=%s", (uid,))
-        mysql_conn.commit()
-
-        # 2. Fetch the updated list of online players
+        # 3. Fetch the updated list of online players
         mysql_cursor.execute("SELECT uid, name, elo_rating FROM users WHERE is_online=TRUE")
         online_users = [{"uid": row[0], "name": row[1], "elo": row[2]} for row in mysql_cursor.fetchall()]
 
-        # 3. Broadcast the new lobby state to everyone
+        # 4. Broadcast the new lobby state to everyone
         await manager.broadcast({"type": "lobby_update", "users": online_users})
 
         # Keep the connection open and listen for incoming messages
@@ -249,6 +251,7 @@ async def websocket_endpoint(websocket: WebSocket, uid: str):
                         "message": "Your challenge was declined."
                     }
                     await manager.send_personal_message(reject_msg, target_uid)
+                    
             # --- 4. FETCH INITIAL GAME STATE ---
             elif message["type"] == "fetch_state":
                 game_id = message["game_id"]
@@ -261,8 +264,7 @@ async def websocket_endpoint(websocket: WebSocket, uid: str):
                     }
                     await manager.send_personal_message(state_msg, uid)
 
-# --- 3. TIC-TAC-TOE MOVES (SERVER AUTHORITATIVE) ---
- # --- 3. TIC-TAC-TOE MOVES (SERVER AUTHORITATIVE) ---
+            # --- 3. TIC-TAC-TOE MOVES (SERVER AUTHORITATIVE) ---
             elif message["type"] == "move":
                 game_id = message["game_id"]
                 cell_index = message["cell_index"]
@@ -321,15 +323,18 @@ async def websocket_endpoint(websocket: WebSocket, uid: str):
                             }
                             await manager.send_personal_message(state_msg, game["player1"])
                             await manager.send_personal_message(state_msg, game["player2"])
+                            
     except WebSocketDisconnect:
         # 1. Disconnect the specific socket
         manager.disconnect(websocket, uid)
         
-        # 2. Update MySQL: Mark user as offline
-        mysql_cursor.execute("UPDATE users SET is_online=FALSE WHERE uid=%s", (uid,))
-        mysql_conn.commit()
+        # --- THE FIX: Only mark offline if they don't have a new active connection ---
+        if uid not in manager.active_connections:
+            # 2. Update MySQL: Mark user as offline
+            mysql_cursor.execute("UPDATE users SET is_online=FALSE WHERE uid=%s", (uid,))
+            mysql_conn.commit()
 
-        # 3. Broadcast the updated Lobby to everyone else so the disconnected player disappears
-        mysql_cursor.execute("SELECT uid, name, elo_rating FROM users WHERE is_online=TRUE")
-        online_users = [{"uid": row[0], "name": row[1], "elo": row[2]} for row in mysql_cursor.fetchall()]
-        await manager.broadcast({"type": "lobby_update", "users": online_users})
+            # 3. Broadcast the updated Lobby to everyone else so the disconnected player disappears
+            mysql_cursor.execute("SELECT uid, name, elo_rating FROM users WHERE is_online=TRUE")
+            online_users = [{"uid": row[0], "name": row[1], "elo": row[2]} for row in mysql_cursor.fetchall()]
+            await manager.broadcast({"type": "lobby_update", "users": online_users})

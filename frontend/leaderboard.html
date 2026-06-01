@@ -112,6 +112,11 @@
 
     <button class="back-btn" onclick="window.location.href='lobby.html'">← Back to Lobby</button>
 </div>
+<div id="challenge-modal" style="display: none; position: fixed; top: 30%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 10px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); z-index: 1000; text-align: center;">
+    <h3 id="challenge-text">⚔️ Challenge Incoming!</h3>
+    <button id="accept-btn" style="background: #28a745; margin: 10px; width: 100px; color: white; border:none; padding:10px; border-radius:5px; cursor:pointer;">Accept</button>
+    <button id="decline-btn" style="background: #d9534f; margin: 10px; width: 100px; color: white; border:none; padding:10px; border-radius:5px; cursor:pointer;">Decline</button>
+</div>
 
 <script src="leaderboard.js"></script>
 </body>

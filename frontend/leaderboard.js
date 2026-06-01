@@ -1,11 +1,11 @@
-// 1. Wrap the initialization to prevent code execution if not logged in
 const myUid = localStorage.getItem("user_uid");
 
 if (!myUid) {
     window.location.href = "index.html";
 } else {
-    // Only load the leaderboard if the user is authenticated
-    loadLeaderboard();
+    
+    // 2. Open the WebSocket to stay online!
+    connectWebSocket(); 
 }
 
 async function loadLeaderboard() {
@@ -13,7 +13,6 @@ async function loadLeaderboard() {
         const host = window.location.hostname;
         const response = await fetch(`http://${host}:8000/leaderboard`);
         
-        // Check if the HTTP request itself failed (e.g., 404 or 500 errors)
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -28,7 +27,6 @@ async function loadLeaderboard() {
         const players = data.leaderboard;
         const tbody = document.getElementById("leaderboard-body");
         
-        // 2. Create a variable to hold the HTML string
         let rowsHtml = "";
 
         players.forEach((player, index) => {
@@ -38,11 +36,8 @@ async function loadLeaderboard() {
                 : `<span class="offline-dot"></span>Offline`;
 
             const highlight = player.uid === myUid ? 'style="background:#e8f0fe; font-weight:bold;"' : '';
-
-            // 3. Simple XSS protection: escape < and > characters in the player name
             const safeName = player.name ? player.name.replace(/</g, "&lt;").replace(/>/g, "&gt;") : "Unknown Player";
 
-            // Append to our string, not the DOM
             rowsHtml += `
                 <tr ${highlight}>
                     <td class="rank">${getRankLabel(rank)}</td>
@@ -54,9 +49,7 @@ async function loadLeaderboard() {
             `;
         });
 
-        // Inject the completed HTML string once
         tbody.innerHTML = rowsHtml;
-
         document.getElementById("loading-msg").style.display = "none";
         document.getElementById("leaderboard-table").style.display = "table";
 
@@ -71,4 +64,56 @@ function getRankLabel(rank) {
     if (rank === 2) return "🥈";
     if (rank === 3) return "🥉";
     return rank;
+}
+
+// --- NEW: WebSocket Connection for the Leaderboard ---
+function connectWebSocket() {
+    const host = window.location.hostname;
+    const ws = new WebSocket(`ws://${host}:8000/ws/${myUid}`);
+
+    // --- THE FIX: Wait for the socket to open before fetching the leaderboard ---
+    ws.onopen = function() {
+        loadLeaderboard();
+    };
+
+    ws.onmessage = function(event) {
+        const data = JSON.parse(event.data);
+
+        // If someone challenges you while you are viewing the leaderboard
+        if (data.type === "incoming_challenge") {
+            const modal = document.getElementById("challenge-modal");
+            if (modal) {
+                document.getElementById("challenge-text").innerText = `⚔️ Challenge from ${data.from_name}!`;
+                modal.style.display = "block";
+
+                // Accept Challenge
+                document.getElementById("accept-btn").onclick = function() {
+                    modal.style.display = "none";
+                    ws.send(JSON.stringify({
+                        type: "challenge_response",
+                        target_uid: data.from_uid, 
+                        from_uid: myUid,
+                        accepted: true
+                    }));
+                };
+
+                // Decline Challenge
+                document.getElementById("decline-btn").onclick = function() {
+                    modal.style.display = "none";
+                    ws.send(JSON.stringify({
+                        type: "challenge_response",
+                        target_uid: data.from_uid, 
+                        from_uid: myUid,
+                        accepted: false
+                    }));
+                };
+            }
+        }
+
+        // If the match starts, jump to the arena
+        if (data.type === "match_start") {
+            localStorage.setItem("current_game_id", data.game_id);
+            window.location.href = "arena.html"; 
+        }
+    };
 }
