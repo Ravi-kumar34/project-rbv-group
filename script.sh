@@ -39,3 +39,4 @@ echo -e "${CYAN}====================================================${NC}\n"
 trap "echo -e '\nShutting down servers...'; kill $BACKEND_PID $FRONTEND_PID; exit" SIGINT SIGTERM
 
 wait
+#fuser -k 8000/tcp

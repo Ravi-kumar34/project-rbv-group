@@ -4,6 +4,29 @@ const gameId = localStorage.getItem("current_game_id");
 if (!myUid || !gameId) {
     window.location.href = "index.html";
 }
+// --- 1. FETCH AND LOAD TOP BAR PROFILE ---
+async function loadTopBarProfile() {
+    if (!myUid) return;
+
+    try {
+        const host = window.location.hostname;
+        const response = await fetch(`http://${host}:8000/user/${myUid}`);
+        const data = await response.json();
+
+        if (!data.error) {
+            const nameEl = document.getElementById("topbar-name");
+            const eloEl = document.getElementById("topbar-elo");
+            
+            if (nameEl) nameEl.innerText = data.name;
+            if (eloEl) eloEl.innerText = data.elo_rating;
+        }
+    } catch (error) {
+        console.error("Error fetching top bar profile:", error);
+    }
+}
+
+// Call the function immediately so the top bar loads
+loadTopBarProfile();
 
 const host = window.location.hostname;
 const ws = new WebSocket(`ws://${host}:8000/ws/${myUid}`);
