@@ -1,19 +1,20 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 import base64
+import json
+import uuid
 from pymongo import MongoClient
 import mysql.connector
 from mysql.connector import pooling 
 from fastapi.middleware.cors import CORSMiddleware
 from backend.facial_recognition_module import find_closest_match, build_encodings_cache
-import json
-import uuid
 from backend.phase4 import router, update_elo_and_record
 
 active_games = {}
 sessions = {}
 app = FastAPI()
 
+# Restored wildcard for multi-device local testing
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], 
@@ -25,9 +26,9 @@ app.add_middleware(
 app.include_router(router)
 
 class LoginRequest(BaseModel):
-    image: str   # base64 image
+    image: str
 
-# 1. GLOBAL CONNECTION POOL
+# 1. GLOBAL CONNECTION POOL (Thread-Safe Concurrency)
 mysql_pool = mysql.connector.pooling.MySQLConnectionPool(
     pool_name="game_pool",
     pool_size=10,
@@ -43,13 +44,13 @@ mongo_db = mongo_client["project_db"]
 collection = mongo_db["images"]
 
 db_images = {doc["uid"]: doc["image"] for doc in collection.find()}
-#encodings_cache = build_encodings_cache(db_images) 
+#encodings_cache = build_encodings_cache(db_images)
 
 
 # ---------- WEBSOCKET CONNECTION MANAGER ----------
 class ConnectionManager:
     def __init__(self):
-        self.active_connections: dict[str, WebSocket] = {}
+        self.active_connections = {}
 
     async def connect(self, websocket: WebSocket, uid: str):
         await websocket.accept()
@@ -61,6 +62,7 @@ class ConnectionManager:
 
     async def broadcast(self, message: dict):
         json_message = json.dumps(message)
+        # Safe broadcasting: prevents one bad connection from crashing the loop
         for connection in list(self.active_connections.values()):
             try:
                 await connection.send_text(json_message)
@@ -105,7 +107,7 @@ def login(request: LoginRequest):
         conn.close()
 
 
-# ---------- 2. LOGINROLL (DEV BYPASS - ADDED BACK) ----------
+# ---------- 2. LOGINROLL (DEV BYPASS) ----------
 @app.post("/loginroll")
 def loginroll(dev_uid: str):
     conn = mysql_pool.get_connection()
@@ -129,7 +131,7 @@ def loginroll(dev_uid: str):
         conn.close()
 
 
-# ---------- 3. USER PROFILE API (ADDED BACK) ----------
+# ---------- 3. USER PROFILE API ----------
 @app.get("/user/{uid}")
 def get_user_profile(uid: str):
     conn = mysql_pool.get_connection()
@@ -157,7 +159,7 @@ def check_winner(board):
     win_combinations = [
         [0, 1, 2], [3, 4, 5], [6, 7, 8],
         [0, 3, 6], [1, 4, 7], [2, 5, 8],
-        [0, 4, 8], [2, 4, 6]            
+        [0, 4, 8], [2, 4, 6]             
     ]
     for combo in win_combinations:
         a, b, c = combo
@@ -210,11 +212,15 @@ async def websocket_endpoint(websocket: WebSocket, uid: str):
 
                 if accepted:
                     game_id = str(uuid.uuid4())
+                    
+                    # Arena flags added for forfeit protection
                     active_games[game_id] = {
                         "player1": target_uid, 
                         "player2": from_uid,   
                         "turn": target_uid,    
-                        "board": [None] * 9    
+                        "board": [None] * 9,
+                        "p1_in_arena": False,
+                        "p2_in_arena": False
                     }
                     start_msg = {"type": "match_start", "game_id": game_id}
                     await manager.send_personal_message(start_msg, target_uid)
@@ -228,6 +234,13 @@ async def websocket_endpoint(websocket: WebSocket, uid: str):
                 game_id = message["game_id"]
                 if game_id in active_games:
                     game = active_games[game_id]
+
+                    # Track when players successfully mount the game UI component
+                    if uid == game["player1"]:
+                        game["p1_in_arena"] = True
+                    elif uid == game["player2"]:
+                        game["p2_in_arena"] = True
+
                     state_msg = {"type": "game_state", "board": game["board"], "turn": game["turn"]}
                     await manager.send_personal_message(state_msg, uid)
 
@@ -251,15 +264,13 @@ async def websocket_endpoint(websocket: WebSocket, uid: str):
                                 winner_uid = "Draw"
                             else:
                                 winner_uid = game["player1"] if winner_mark == "X" else game["player2"]
-                                loser_uid = game["player2"] if winner_mark == "X" else game["player1"]
                                 
-                                cursor.execute("UPDATE users SET elo_rating = elo_rating + 25 WHERE uid=%s", (winner_uid,))
-                                cursor.execute("UPDATE users SET elo_rating = elo_rating - 25 WHERE uid=%s", (loser_uid,))
-                                conn.commit()
+                            # Calls Phase 4 mathematical formula calculation and logs to matches table
+                            update_elo_and_record(winner_uid, game["player1"], game["player2"])
 
-                                cursor.execute("SELECT uid, name, elo_rating FROM users WHERE is_online=TRUE")
-                                updated_users = [{"uid": row[0], "name": row[1], "elo": row[2]} for row in cursor.fetchall()]
-                                await manager.broadcast({"type": "lobby_update", "users": updated_users})
+                            cursor.execute("SELECT uid, name, elo_rating FROM users WHERE is_online=TRUE")
+                            updated_users = [{"uid": row[0], "name": row[1], "elo": row[2]} for row in cursor.fetchall()]
+                            await manager.broadcast({"type": "lobby_update", "users": updated_users})
                             
                             game_over_msg = {"type": "game_over", "board": game["board"], "winner": winner_uid}
                             await manager.send_personal_message(game_over_msg, game["player1"])
@@ -275,6 +286,26 @@ async def websocket_endpoint(websocket: WebSocket, uid: str):
     except WebSocketDisconnect:
         manager.disconnect(websocket, uid)
         
+        # --- IN-ARENA FORFEIT PROTECTION ---
+        game_id_to_close = None
+        for g_id, game in active_games.items():
+            if game["player1"] == uid or game["player2"] == uid:
+                if game.get("p1_in_arena") and game.get("p2_in_arena"):
+                    game_id_to_close = g_id
+                break
+
+        if game_id_to_close:
+            game = active_games[game_id_to_close]
+            winner_uid = game["player2"] if game["player1"] == uid else game["player1"]
+            
+            # Forfeit trigger: Process victory Elo changes through phase4
+            update_elo_and_record(winner_uid, game["player1"], game["player2"])
+            
+            forfeit_msg = {"type": "game_over", "board": game["board"], "winner": winner_uid}
+            await manager.send_personal_message(forfeit_msg, winner_uid)
+            del active_games[game_id_to_close]
+
+        # Ghost disconnect protection
         if uid not in manager.active_connections:
             cursor.execute("UPDATE users SET is_online=FALSE WHERE uid=%s", (uid,))
             conn.commit()
@@ -284,5 +315,6 @@ async def websocket_endpoint(websocket: WebSocket, uid: str):
             await manager.broadcast({"type": "lobby_update", "users": online_users})
 
     finally:
+        # Ensures no connection pool starvation ever happens
         cursor.close()
         conn.close()
