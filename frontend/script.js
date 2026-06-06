@@ -1,6 +1,11 @@
 const video = document.getElementById("video");
 const canvas = document.getElementById("canvas");
 
+// --- DYNAMIC URL ROUTING ---
+const isSecure = window.location.protocol === "https:";
+const currentHost = window.location.host; 
+const apiBase = `${isSecure ? 'https' : 'http'}://${currentHost}`;
+
 // ---------------- CAMERA ----------------
 async function startCamera() {
     try {
@@ -47,16 +52,15 @@ async function capture() {
 
     if (!imageData) return;
 
-    const host = window.location.hostname;
-
     try {
-
+        // Updated to use dynamic apiBase and added ngrok bypass header
         const response = await fetch(
-            `http://${host}:8000/login`,
+            `${apiBase}/login`,
             {
                 method: "POST",
                 headers: {
-                    "Content-Type": "application/json"
+                    "Content-Type": "application/json",
+                    "ngrok-skip-browser-warning": "true"
                 },
                 body: JSON.stringify({
                     image: imageData
@@ -68,7 +72,10 @@ async function capture() {
 
         if (data.message === "Login Success") {
 
+            // If your backend is sending name and elo here, you can save them!
             localStorage.setItem("user_uid", data.uid);
+            if (data.name) localStorage.setItem("user_name", data.name);
+            if (data.elo) localStorage.setItem("user_elo", data.elo);
 
             alert("Login Successful");
 
@@ -98,14 +105,15 @@ async function loginWithRollNo() {
         return;
     }
 
-    const host = window.location.hostname;
-
     try {
-
+        // Updated to use dynamic apiBase and added ngrok bypass header
         const response = await fetch(
-            `http://${host}:8000/loginroll?dev_uid=${encodeURIComponent(rollNo)}`,
+            `${apiBase}/loginroll?dev_uid=${encodeURIComponent(rollNo)}`,
             {
-                method: "POST"
+                method: "POST",
+                headers: {
+                    "ngrok-skip-browser-warning": "true"
+                }
             }
         );
 
@@ -113,7 +121,10 @@ async function loginWithRollNo() {
 
         if (data.message === "Login Success") {
 
+            // Save the session
             localStorage.setItem("user_uid", data.uid);
+            if (data.name) localStorage.setItem("user_name", data.name);
+            if (data.elo) localStorage.setItem("user_elo", data.elo);
 
             alert("Login Successful");
 

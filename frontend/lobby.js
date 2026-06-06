@@ -5,13 +5,24 @@ const myUid = localStorage.getItem("user_uid");
 if (!myUid) {
     window.location.href = "index.html";
 }
+
+// --- DYNAMIC URL ROUTING ---
+const isSecure = window.location.protocol === "https:";
+const currentHost = window.location.host; 
+const apiBase = `${isSecure ? 'https' : 'http'}://${currentHost}`;
+const wsBase = `${isSecure ? 'wss' : 'ws'}://${currentHost}/ws`;
+
 // --- 1. FETCH AND LOAD TOP BAR PROFILE ---
 async function loadTopBarProfile() {
     if (!myUid) return;
 
     try {
-        const host = window.location.hostname;
-        const response = await fetch(`http://${host}:8000/user/${myUid}`);
+        // Updated to use dynamic apiBase and added ngrok bypass header
+        const response = await fetch(`${apiBase}/user/${myUid}`, {
+            headers: {
+                "ngrok-skip-browser-warning": "true"
+            }
+        });
         const data = await response.json();
 
         if (!data.error) {
@@ -28,9 +39,9 @@ async function loadTopBarProfile() {
 
 // Call the function immediately so the top bar loads
 loadTopBarProfile();
-// 2. Open the WebSocket connection
-const host = window.location.hostname;
-const ws = new WebSocket(`ws://${host}:8000/ws/${myUid}`);
+
+// 2. Open the WebSocket connection using dynamic wsBase
+const ws = new WebSocket(`${wsBase}/${myUid}`);
 
 // 3. Listen for messages from the server
 ws.onmessage = function(event) {
@@ -41,8 +52,7 @@ ws.onmessage = function(event) {
         renderLobby(data.users);
     }
     
-    // --- THE AUTO-ACCEPT FIX ---
-// --- THE REAL POPUP FIX ---
+    // --- THE REAL POPUP FIX ---
     if (data.type === "incoming_challenge") {
         // Show the custom modal
         const modal = document.getElementById("challenge-modal");

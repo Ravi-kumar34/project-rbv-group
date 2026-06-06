@@ -1,0 +1,20 @@
+# --- Security & Environment Variables ---
+.env
+
+# --- Virtual Environments ---
+.venv/
+venv/
+env/
+
+# --- IDEs and Editors ---
+.vscode/
+.idea/
+
+# --- Python Cache & Compiled Files ---
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- OS Generated Files ---
+.DS_Store
+Thumbs.db

@@ -1,3 +1,9 @@
+import os
+from dotenv import load_dotenv
+
+# Load the environment variables from the .env file
+load_dotenv()
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 import base64
@@ -9,6 +15,7 @@ from mysql.connector import pooling
 from fastapi.middleware.cors import CORSMiddleware
 from backend.facial_recognition_module import find_closest_match, build_encodings_cache
 from backend.phase4 import router, update_elo_and_record
+from fastapi.staticfiles import StaticFiles
 
 active_games = {}
 sessions = {}
@@ -18,7 +25,7 @@ app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], 
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -32,10 +39,10 @@ class LoginRequest(BaseModel):
 mysql_pool = mysql.connector.pooling.MySQLConnectionPool(
     pool_name="game_pool",
     pool_size=10,
-    host="localhost",
-    user="root",
-    password="MySQLpassword42",
-    database="project"
+    host=os.getenv("MYSQL_HOST", "localhost"),
+    user=os.getenv("MYSQL_USER", "root"),
+    password=os.getenv("MYSQL_PASSWORD"),      # <-- Securely loaded!
+    database=os.getenv("MYSQL_DATABASE", "project")
 )
 
 # 2. MONGO & STARTUP CACHE SETUP
@@ -318,3 +325,7 @@ async def websocket_endpoint(websocket: WebSocket, uid: str):
         # Ensures no connection pool starvation ever happens
         cursor.close()
         conn.close()
+
+
+# This tells FastAPI to serve all your HTML, CSS, and JS files!
+app.mount("/", StaticFiles(directory="frontend", html=True), name="static")

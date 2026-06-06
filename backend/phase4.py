@@ -1,14 +1,19 @@
+import os
+from dotenv import load_dotenv
 from fastapi import APIRouter
 import mysql.connector
+
+# Load the environment variables
+load_dotenv()
 
 router = APIRouter()
 
 def get_db_connection():
     return mysql.connector.connect(
-        host="localhost",
-        user="root",
-        password="MySQLpassword42",
-        database="project"
+        host=os.getenv("MYSQL_HOST", "localhost"),
+        user=os.getenv("MYSQL_USER", "root"),
+        password=os.getenv("MYSQL_PASSWORD"),      # <-- Securely loaded!
+        database=os.getenv("MYSQL_DATABASE", "project")
     )
 
 def update_elo_and_record(winner_uid, p1_uid, p2_uid):

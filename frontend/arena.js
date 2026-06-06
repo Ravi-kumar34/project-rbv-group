@@ -4,13 +4,24 @@ const gameId = localStorage.getItem("current_game_id");
 if (!myUid || !gameId) {
     window.location.href = "index.html";
 }
+
+// --- DYNAMIC URL ROUTING ---
+const isSecure = window.location.protocol === "https:";
+const currentHost = window.location.host; 
+const apiBase = `${isSecure ? 'https' : 'http'}://${currentHost}`;
+const wsBase = `${isSecure ? 'wss' : 'ws'}://${currentHost}/ws`;
+
 // --- 1. FETCH AND LOAD TOP BAR PROFILE ---
 async function loadTopBarProfile() {
     if (!myUid) return;
 
     try {
-        const host = window.location.hostname;
-        const response = await fetch(`http://${host}:8000/user/${myUid}`);
+        // Updated to use dynamic apiBase and added ngrok bypass header
+        const response = await fetch(`${apiBase}/user/${myUid}`, {
+            headers: {
+                "ngrok-skip-browser-warning": "true"
+            }
+        });
         const data = await response.json();
 
         if (!data.error) {
@@ -28,8 +39,9 @@ async function loadTopBarProfile() {
 // Call the function immediately so the top bar loads
 loadTopBarProfile();
 
-const host = window.location.hostname;
-const ws = new WebSocket(`ws://${host}:8000/ws/${myUid}`);
+// Updated to use dynamic wsBase
+const ws = new WebSocket(`${wsBase}/${myUid}`);
+
 // Ask the server for the initial board state as soon as we connect
 ws.onopen = function() {
     ws.send(JSON.stringify({
@@ -37,6 +49,7 @@ ws.onopen = function() {
         game_id: gameId
     }));
 };
+
 const statusText = document.getElementById("status-text");
 const boardDiv = document.getElementById("board");
 
