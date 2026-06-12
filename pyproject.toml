@@ -19,6 +19,3 @@ dependencies = [
     "uvicorn[standard]>=0.44.0",
     "websockets>=16.0",
 ]
-
-[tool.uv.sources]
-face-recognition-models = { git = "https://github.com/ageitgey/face_recognition_models" }
