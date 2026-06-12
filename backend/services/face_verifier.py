@@ -9,7 +9,7 @@ Dependencies (add to your uv project):
 import base64
 import io
 
-import face_recognition
+#import face_recognition
 import numpy as np
 from PIL import Image
 

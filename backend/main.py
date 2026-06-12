@@ -7,8 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from backend.config.database import image_collection
 
 # Import modular routers
-from backend.routers import game, leaderboard
-# Temporarily removed auth while we migrate the AI microservice
+from backend.routers import auth, game, leaderboard
 
 # Import the black-box facial recognition module logic
 #from backend.services.face_verifier import build_encodings_cache
@@ -51,7 +50,7 @@ app.add_middleware(
 
 
 # ---------- ROUTER ROUTING INTEGRATION ----------
-#app.include_router(auth.router)
+app.include_router(auth.router)
 app.include_router(game.router)
 app.include_router(leaderboard.router)
 
