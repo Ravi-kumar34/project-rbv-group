@@ -1,57 +1,16 @@
-import os
-from dotenv import load_dotenv
-
-# Load the environment variables from the .env file
-load_dotenv()
-
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from pydantic import BaseModel
-import base64
 import json
 import uuid
-from pymongo import MongoClient
-import mysql.connector
-from mysql.connector import pooling 
-from fastapi.middleware.cors import CORSMiddleware
-from backend.facial_recognition_module import find_closest_match, build_encodings_cache
-from backend.phase4 import router, update_elo_and_record
-from fastapi.staticfiles import StaticFiles
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from backend.config.database import get_mysql_connection
 
+# Importing modularized services
+from backend.services.game_logic import check_winner
+from backend.services.elo_engine import update_elo_and_record
+
+router = APIRouter(tags=["Game Arena"])
+
+# In-memory tracking for active match states
 active_games = {}
-sessions = {}
-app = FastAPI()
-
-# Restored wildcard for multi-device local testing
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"], 
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-app.include_router(router)
-
-class LoginRequest(BaseModel):
-    image: str
-
-# 1. GLOBAL CONNECTION POOL (Thread-Safe Concurrency)
-mysql_pool = mysql.connector.pooling.MySQLConnectionPool(
-    pool_name="game_pool",
-    pool_size=10,
-    host=os.getenv("MYSQL_HOST", "localhost"),
-    user=os.getenv("MYSQL_USER", "root"),
-    password=os.getenv("MYSQL_PASSWORD"),      # <-- Securely loaded!
-    database=os.getenv("MYSQL_DATABASE", "project")
-)
-
-# 2. MONGO & STARTUP CACHE SETUP
-mongo_client = MongoClient("mongodb://localhost:27017/")
-mongo_db = mongo_client["project_db"]
-collection = mongo_db["images"]
-
-db_images = {doc["uid"]: doc["image"] for doc in collection.find()}
-#encodings_cache = build_encodings_cache(db_images)
 
 
 # ---------- WEBSOCKET CONNECTION MANAGER ----------
@@ -80,113 +39,20 @@ class ConnectionManager:
         if uid in self.active_connections:
             await self.active_connections[uid].send_text(json.dumps(message))
 
+
 manager = ConnectionManager()
 
 
-# ---------- 1. STANDARD FACE LOGIN API ----------
-@app.post("/login")
-def login(request: LoginRequest):
-    conn = mysql_pool.get_connection()
-    cursor = conn.cursor(buffered=True)
-    try:
-        base64_data = request.image.split(",")[1]
-        login_image_bytes = base64.b64decode(base64_data)
-
-        matched_uid = find_closest_match(login_image_bytes, encodings_cache)
-        if matched_uid is None:
-            return {"message": "Login Failed"}
-
-        cursor.execute("SELECT * FROM users WHERE uid=%s", (matched_uid,))
-        user = cursor.fetchone()
-
-        if not user:
-            return {"message": "User not found"}
-
-        cursor.execute("UPDATE users SET is_online=TRUE WHERE uid=%s", (matched_uid,))
-        conn.commit()
-
-        sessions[matched_uid] = True
-        return {"message": "Login Success", "uid": matched_uid}
-    except Exception as e:
-        return {"message": f"Error: {str(e)}"}
-    finally:
-        cursor.close()
-        conn.close()
-
-
-# ---------- 2. LOGINROLL (DEV BYPASS) ----------
-@app.post("/loginroll")
-def loginroll(dev_uid: str):
-    conn = mysql_pool.get_connection()
-    cursor = conn.cursor(buffered=True)
-    try:
-        cursor.execute("SELECT uid FROM users WHERE uid=%s", (dev_uid,))
-        user = cursor.fetchone()
-
-        if user is None:
-            return {"message": "Invalid UID"}
-
-        cursor.execute("UPDATE users SET is_online=TRUE WHERE uid=%s", (dev_uid,))
-        conn.commit()
-
-        sessions[dev_uid] = True
-        return {"message": "Login Success", "uid": dev_uid}
-    except Exception as e:
-        return {"message": f"Error: {str(e)}"}
-    finally:
-        cursor.close()
-        conn.close()
-
-
-# ---------- 3. USER PROFILE API ----------
-@app.get("/user/{uid}")
-def get_user_profile(uid: str):
-    conn = mysql_pool.get_connection()
-    cursor = conn.cursor(buffered=True)
-    try:
-        cursor.execute("SELECT name, elo_rating FROM users WHERE uid=%s", (uid,))
-        user = cursor.fetchone()
-        
-        if user is None:
-            return {"error": "User not found"}
-            
-        return {
-            "name": user[0],
-            "elo_rating": user[1]
-        }
-    except Exception as e:
-        return {"error": str(e)}
-    finally:
-        cursor.close()
-        conn.close()
-
-
-# ---------- HELPER: GAME WIN LOGIC ----------
-def check_winner(board):
-    win_combinations = [
-        [0, 1, 2], [3, 4, 5], [6, 7, 8],
-        [0, 3, 6], [1, 4, 7], [2, 5, 8],
-        [0, 4, 8], [2, 4, 6]             
-    ]
-    for combo in win_combinations:
-        a, b, c = combo
-        if board[a] is not None and board[a] == board[b] == board[c]:
-            return board[a]
-            
-    if None not in board:
-        return "Draw"
-    return None
-
-
-# ---------- 4. REAL-TIME GAME ARENA (WEBSOCKET) ----------
-@app.websocket("/ws/{uid}")
+# ---------- REAL-TIME GAME ARENA (WEBSOCKET) ----------
+@router.websocket("/ws/{uid}")
 async def websocket_endpoint(websocket: WebSocket, uid: str):
     await manager.connect(websocket, uid)
 
-    conn = mysql_pool.get_connection()
+    conn = get_mysql_connection()
     cursor = conn.cursor(buffered=True)
 
     try:
+        # Mark user online upon connection and update lobby
         cursor.execute("UPDATE users SET is_online=TRUE WHERE uid=%s", (uid,))
         conn.commit()
 
@@ -198,6 +64,7 @@ async def websocket_endpoint(websocket: WebSocket, uid: str):
             data = await websocket.receive_text()
             message = json.loads(data)
             
+            # 1. CHALLENGE HANDSHAKE
             if message["type"] == "challenge":
                 target_uid = message["target_uid"]
                 from_uid = message["from_uid"]
@@ -212,6 +79,7 @@ async def websocket_endpoint(websocket: WebSocket, uid: str):
                 }
                 await manager.send_personal_message(forward_msg, target_uid)
 
+            # 2. CHALLENGE RESPONSE (MATCH CREATION)
             elif message["type"] == "challenge_response":
                 target_uid = message["target_uid"]
                 from_uid = message["from_uid"]
@@ -232,11 +100,11 @@ async def websocket_endpoint(websocket: WebSocket, uid: str):
                     start_msg = {"type": "match_start", "game_id": game_id}
                     await manager.send_personal_message(start_msg, target_uid)
                     await manager.send_personal_message(start_msg, from_uid)
-                    
                 else:
                     reject_msg = {"type": "challenge_rejected", "message": "Your challenge was declined."}
                     await manager.send_personal_message(reject_msg, target_uid)
                     
+            # 3. COMPONENT MOUNT / STATE SYNC
             elif message["type"] == "fetch_state":
                 game_id = message["game_id"]
                 if game_id in active_games:
@@ -251,6 +119,7 @@ async def websocket_endpoint(websocket: WebSocket, uid: str):
                     state_msg = {"type": "game_state", "board": game["board"], "turn": game["turn"]}
                     await manager.send_personal_message(state_msg, uid)
 
+            # 4. GAME MOVE EVALUATION
             elif message["type"] == "move":
                 game_id = message["game_id"]
                 cell_index = message["cell_index"]
@@ -265,6 +134,7 @@ async def websocket_endpoint(websocket: WebSocket, uid: str):
                         next_turn = game["player2"] if game["player1"] == uid else game["player1"]
                         game["turn"] = next_turn
 
+                        # Evaluates board layout using the logic service
                         winner_mark = check_winner(game["board"])
                         if winner_mark:
                             if winner_mark == "Draw":
@@ -272,7 +142,7 @@ async def websocket_endpoint(websocket: WebSocket, uid: str):
                             else:
                                 winner_uid = game["player1"] if winner_mark == "X" else game["player2"]
                                 
-                            # Calls Phase 4 mathematical formula calculation and logs to matches table
+                            # Process victory Elo changes through pure backend service
                             update_elo_and_record(winner_uid, game["player1"], game["player2"])
 
                             cursor.execute("SELECT uid, name, elo_rating FROM users WHERE is_online=TRUE")
@@ -284,7 +154,6 @@ async def websocket_endpoint(websocket: WebSocket, uid: str):
                             await manager.send_personal_message(game_over_msg, game["player2"])
                             
                             del active_games[game_id]
-
                         else:
                             state_msg = {"type": "game_state", "board": game["board"], "turn": game["turn"]}
                             await manager.send_personal_message(state_msg, game["player1"])
@@ -305,7 +174,7 @@ async def websocket_endpoint(websocket: WebSocket, uid: str):
             game = active_games[game_id_to_close]
             winner_uid = game["player2"] if game["player1"] == uid else game["player1"]
             
-            # Forfeit trigger: Process victory Elo changes through phase4
+            # Forfeit trigger: Process automatic victory award
             update_elo_and_record(winner_uid, game["player1"], game["player2"])
             
             forfeit_msg = {"type": "game_over", "board": game["board"], "winner": winner_uid}
@@ -325,7 +194,3 @@ async def websocket_endpoint(websocket: WebSocket, uid: str):
         # Ensures no connection pool starvation ever happens
         cursor.close()
         conn.close()
-
-
-# This tells FastAPI to serve all your HTML, CSS, and JS files!
-app.mount("/", StaticFiles(directory="frontend", html=True), name="static")
