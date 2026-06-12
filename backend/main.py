@@ -42,7 +42,7 @@ app = FastAPI(lifespan=lifespan)
 # Configured for multi-device network testing across local systems
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], 
+    allow_origins=["https://websocket-tictactoe-engine.vercel.app/"], 
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
