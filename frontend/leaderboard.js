@@ -1,10 +1,8 @@
 const myUid = localStorage.getItem("user_uid");
 
-// --- DYNAMIC URL ROUTING ---
-const isSecure = window.location.protocol === "https:";
-const currentHost = window.location.host; 
-const apiBase = `${isSecure ? 'https' : 'http'}://${currentHost}`;
-const wsBase = `${isSecure ? 'wss' : 'ws'}://${currentHost}/ws`;
+// --- RENDER BACKEND URLS ---
+const apiBase = "https://websocket-tictactoe-engine.onrender.com";
+const wsBase = "wss://websocket-tictactoe-engine.onrender.com/ws";
 
 if (!myUid) {
     window.location.href = "index.html";

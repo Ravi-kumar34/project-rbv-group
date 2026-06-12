@@ -1,10 +1,8 @@
 const video = document.getElementById("video");
 const canvas = document.getElementById("canvas");
 
-// --- DYNAMIC URL ROUTING ---
-const isSecure = window.location.protocol === "https:";
-const currentHost = window.location.host; 
-const apiBase = `${isSecure ? 'https' : 'http'}://${currentHost}`;
+// --- RENDER BACKEND URL ---
+const apiBase = "https://websocket-tictactoe-engine.onrender.com";
 
 // ---------------- CAMERA ----------------
 async function startCamera() {
